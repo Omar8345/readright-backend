@@ -5,6 +5,7 @@ from typing import Tuple
 
 from appwrite.client import Client
 from appwrite.services.storage import Storage
+from appwrite.services.functions import Functions
 from appwrite.input_file import InputFile
 from appwrite.services.tables_db import TablesDB
 from appwrite.id import ID
@@ -102,6 +103,15 @@ async def main(context):
         storage = Storage(client)
         tablesDB = TablesDB(client)
 
+        if context.req.method == "GET":
+            data = context.req.body_json
+            workerid = data.get("workerId")
+            functions = Functions(client)
+            response = functions.get_execution(
+                function_id=os.environ["APPWRITE_FUNCTION_ID"],
+                execution_id=workerid
+            )
+            return context.res.json(response)
         data = context.req.body_json
         url, text = data.get("url"), data.get("text")
 
