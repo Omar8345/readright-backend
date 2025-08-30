@@ -29,14 +29,16 @@ def fetch_article_text(url: str) -> Tuple[str, str]:
     """Fetch clean article text and title using Diffbot API."""
     api_url = f"https://api.diffbot.com/v3/article?token={DIFFBOT_TOKEN}&url={url}"
     try:
-        response = requests.get(api_url, timeout=10)
+        response = requests.get(api_url, timeout=25)
         response.raise_for_status()
         data = response.json()
         obj = data.get("objects", [{}])[0]
+        if response.status_code == 404:
+            return "", ""
         return obj.get("text", ""), obj.get("title", "Untitled")
     except Exception as e:
         print(f"Error fetching article: {e}")
-        return "", "Untitled"
+        return "", ""
 
 
 def generate_simplified_text(text: str) -> str:
@@ -115,6 +117,10 @@ async def main(context):
             article_text, title = text, None
         elif url:
             article_text, title = fetch_article_text(url)
+            if not article_text:
+                return context.res.send(
+                    "", 404, headers={"Access-Control-Allow-Origin": allowed_origin}
+                )
         else:
             return context.res.send(
                 "", 400, headers={"Access-Control-Allow-Origin": allowed_origin}
