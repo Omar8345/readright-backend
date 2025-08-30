@@ -181,8 +181,7 @@ async def main(context):
         )
 
         return context.res.json(
-            {"id": row["$id"]},
-            headers={"Access-Control-Allow-Origin": allowed_origin}
+            {"id": row["$id"]}
         )
 
     except Exception as e:
