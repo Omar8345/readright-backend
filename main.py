@@ -47,7 +47,7 @@ def generate_simplified_text(text: str) -> str:
         f"{text}"
     )
     return gemini_client.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt
+        model="gemini-2.5-flash", contents=prompt
     ).text
 
 
@@ -59,7 +59,7 @@ def generate_tldr(text: str) -> str:
         f"{text}"
     )
     return gemini_client.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt
+        model="gemini-2.5-flash", contents=prompt
     ).text
 
 
