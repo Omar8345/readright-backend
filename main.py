@@ -154,12 +154,11 @@ async def main(context):
         )
 
         result_data = {
+            "title": title,
             "simplifiedText": simplified,
             "tldr": tldr,
             "audioUrl": audio_link,
         }
-        if title:
-            result_data["title"] = title
 
         row = tablesDB.create_row(
             database_id=os.environ["APPWRITE_DATABASE_ID"],
