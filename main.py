@@ -16,6 +16,16 @@ import edge_tts
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 DIFFBOT_TOKEN = os.getenv("DIFFBOT_TOKEN")
 
+# Allowed origins for CORS
+ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "https://readright.appwrite.network",
+]
+
+def get_origin_header(origin: str) -> str:
+    """Return allowed origin if valid, else empty string."""
+    return origin if origin in ALLOWED_ORIGINS else ""
+
 
 def fetch_article_text(url: str) -> Tuple[str, str]:
     """Fetch clean article text and title using Diffbot API."""
@@ -90,10 +100,22 @@ async def generate_tts(text: str, filename: str = "/tmp/audio.mp3") -> str:
 
 
 async def main(context):
-    """Appwrite serverless function entrypoint."""
+    """Appwrite serverless function entrypoint with CORS."""
+    origin = context.req.headers.get("origin", "")
+    allowed_origin = get_origin_header(origin)
+
     try:
+        # Handle CORS preflight
         if context.req.method == "OPTIONS":
-            return context.res.send("", 200)
+            return context.res.send(
+                "",
+                200,
+                headers={
+                    "Access-Control-Allow-Origin": allowed_origin,
+                    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                },
+            )
 
         client = (
             Client()
@@ -111,7 +133,11 @@ async def main(context):
                 function_id=os.environ["APPWRITE_FUNCTION_ID"],
                 execution_id=workerid
             )
-            return context.res.json(response)
+            return context.res.json(
+                response,
+                headers={"Access-Control-Allow-Origin": allowed_origin}
+            )
+
         data = context.req.body_json
         url, text = data.get("url"), data.get("text")
 
@@ -120,9 +146,9 @@ async def main(context):
         elif url:
             article_text, title = fetch_article_text(url)
             if not article_text:
-                return context.res.send("", 404)
+                return context.res.send("", 404, headers={"Access-Control-Allow-Origin": allowed_origin})
         else:
-            return context.res.send("", 400)
+            return context.res.send("", 400, headers={"Access-Control-Allow-Origin": allowed_origin})
 
         simplified = generate_simplified_text(article_text)
         tldr = generate_tldr(article_text)
@@ -154,8 +180,13 @@ async def main(context):
             data=result_data,
         )
 
-        return context.res.json({"id": row["$id"]})
+        return context.res.json(
+            {"id": row["$id"]},
+            headers={"Access-Control-Allow-Origin": allowed_origin}
+        )
 
     except Exception as e:
         context.error(str(e))
-        return context.res.send("", 500)
+        return context.res.send(
+            "", 500, headers={"Access-Control-Allow-Origin": allowed_origin}
+        )
