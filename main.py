@@ -64,6 +64,17 @@ def generate_tldr(text: str) -> str:
         model="gemini-2.5-flash", contents=prompt
     ).text
 
+def generate_title(text: str) -> str:
+    """Use Gemini to generate a title for the article."""
+    prompt = (
+        "Generate a concise and descriptive title for the following article only. "
+        "Do not add any additional commentary or explanation. Just the title:\n\n"
+        f"{text}"
+    )
+    return gemini_client.models.generate_content(
+        model="gemini-2.5-flash", contents=prompt
+    ).text
+
 
 def clean_text_for_tts(text: str) -> str:
     """Remove markdown and formatting artifacts before TTS."""
@@ -114,7 +125,7 @@ async def main(context):
         url, text = data.get("url"), data.get("text")
 
         if text:
-            article_text, title = text, None
+            article_text, title = text, generate_title(text)
         elif url:
             article_text, title = fetch_article_text(url)
             if not article_text:
