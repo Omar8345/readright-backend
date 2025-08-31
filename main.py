@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import requests
@@ -179,12 +180,12 @@ async def main(context):
             data=result_data,
         )
 
-        return context.res.json(
-            {"id": row["$id"]}
+        return context.res.text(
+            json.dumps({"id": row["$id"]})
         )
 
     except Exception as e:
         context.error(str(e))
-        return context.res.send(
+        return context.res.text(
             "", 500, headers={"Access-Control-Allow-Origin": allowed_origin}
         )
