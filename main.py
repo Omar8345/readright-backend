@@ -13,6 +13,7 @@ from appwrite.id import ID
 from google import genai
 import edge_tts
 
+# Gemini client
 gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 DIFFBOT_TOKEN = os.getenv("DIFFBOT_TOKEN")
 
@@ -50,9 +51,10 @@ def generate_simplified_text(text: str) -> str:
         "Do not add any headings, labels, or commentary. Only output the rewritten article:\n\n"
         f"{text}"
     )
-    return gemini_client.models.generate_content(
+    result = gemini_client.models.generate_content(
         model="gemini-2.5-flash", contents=prompt
-    ).text
+    )
+    return str(getattr(result, "text", ""))
 
 
 def generate_tldr(text: str) -> str:
@@ -62,9 +64,10 @@ def generate_tldr(text: str) -> str:
         "Do not add any introduction or labels, just the bullets:\n\n"
         f"{text}"
     )
-    return gemini_client.models.generate_content(
+    result = gemini_client.models.generate_content(
         model="gemini-2.5-flash", contents=prompt
-    ).text
+    )
+    return str(getattr(result, "text", ""))
 
 
 def generate_title(text: str) -> str:
@@ -74,9 +77,10 @@ def generate_title(text: str) -> str:
         "Do not add any additional commentary or explanation. Just the title:\n\n"
         f"{text}"
     )
-    return gemini_client.models.generate_content(
+    result = gemini_client.models.generate_content(
         model="gemini-2.5-flash", contents=prompt
-    ).text
+    )
+    return str(getattr(result, "text", ""))
 
 
 def clean_text_for_tts(text: str) -> str:
@@ -117,6 +121,7 @@ async def main(context):
                 },
             )
 
+        # Init Appwrite client
         client = (
             Client()
             .set_project(os.environ["APPWRITE_FUNCTION_PROJECT_ID"])
@@ -125,6 +130,7 @@ async def main(context):
         storage = Storage(client)
         tablesDB = TablesDB(client)
 
+        # ---- GET: check execution status ----
         if context.req.method == "GET":
             workerid = context.req.query.get("workerid")
             functions = Functions(client)
@@ -133,26 +139,40 @@ async def main(context):
                 execution_id=workerid
             )
             return context.res.json(
-                response,
+                dict(response),  # ✅ ensure plain dict
                 headers={"Access-Control-Allow-Origin": allowed_origin}
             )
 
+        # ---- POST: process article or text ----
         data = context.req.body_json
         url, text = data.get("url"), data.get("text")
 
         if text:
-            article_text, title = text, generate_title(text)
+            article_text = text
+            title = generate_title(text)
         elif url:
             article_text, title = fetch_article_text(url)
             if not article_text:
-                return context.res.send("", 404, headers={"Access-Control-Allow-Origin": allowed_origin})
+                return context.res.send(
+                    "",
+                    404,
+                    headers={"Access-Control-Allow-Origin": allowed_origin}
+                )
         else:
-            return context.res.send("", 400, headers={"Access-Control-Allow-Origin": allowed_origin})
+            return context.res.send(
+                "",
+                400,
+                headers={"Access-Control-Allow-Origin": allowed_origin}
+            )
 
+        docid = data.get("docid")
+
+        # Generate outputs (always cast to str for safety)
         simplified = generate_simplified_text(article_text)
         tldr = generate_tldr(article_text)
         await generate_tts(simplified, filename="/tmp/audio.mp3")
 
+        # Upload audio file
         file = storage.create_file(
             bucket_id=os.environ["APPWRITE_BUCKET_ID"],
             file_id=ID.unique(),
@@ -165,6 +185,7 @@ async def main(context):
             f"?project={os.environ['APPWRITE_FUNCTION_PROJECT_ID']}"
         )
 
+        # Save row to DB
         result_data = {
             "title": title,
             "simplifiedText": simplified,
@@ -175,18 +196,19 @@ async def main(context):
         row = tablesDB.create_row(
             database_id=os.environ["APPWRITE_DATABASE_ID"],
             table_id=os.environ["APPWRITE_TABLE_ID"],
-            row_id=ID.unique(),
+            row_id=docid,
             data=result_data,
         )
 
-        return context.res.send(
-            {"id": row["$id"]},
-            201,
+        return context.res.json(
+            {"id": str(row["$id"])},
             headers={"Access-Control-Allow-Origin": allowed_origin}
         )
 
     except Exception as e:
         context.error(str(e))
         return context.res.send(
-            "", 500, headers={"Access-Control-Allow-Origin": allowed_origin}
+            "",
+            500,
+            headers={"Access-Control-Allow-Origin": allowed_origin}
         )
