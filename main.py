@@ -126,8 +126,7 @@ async def main(context):
         tablesDB = TablesDB(client)
 
         if context.req.method == "GET":
-            data = context.req.body_json
-            workerid = data.get("workerId")
+            workerid = context.req.query.get("workerid")
             functions = Functions(client)
             response = functions.get_execution(
                 function_id=os.environ["APPWRITE_FUNCTION_ID"],
