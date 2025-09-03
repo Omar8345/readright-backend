@@ -39,9 +39,28 @@ def fetch_article_text(url: str) -> Tuple[str, str]:
         if response.status_code == 404:
             return "", ""
         return obj.get("text", ""), obj.get("title", "Untitled")
-    except Exception as e:
-        print(f"Error fetching article: {e}")
+    except Exception:
         return "", ""
+
+
+def generate_with_fallback(prompt: str) -> str:
+    """Try Gemini 2.5 → 2.0 → 1.5 Flash with graceful fallback, raise if all fail."""
+    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    
+    last_error = None
+    for model in models:
+        try:
+            result = gemini_client.models.generate_content(
+                model=model, contents=prompt
+            )
+            text = getattr(result, "text", "").strip()
+            if text:
+                return text
+        except Exception as e:
+            last_error = e
+            continue
+    
+    raise RuntimeError("All Gemini models failed") from last_error
 
 
 def generate_simplified_text(text: str) -> str:
@@ -51,10 +70,7 @@ def generate_simplified_text(text: str) -> str:
         "Do not add any headings, labels, or commentary. Only output the rewritten article:\n\n"
         f"{text}"
     )
-    result = gemini_client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt
-    )
-    return str(getattr(result, "text", ""))
+    return generate_with_fallback(prompt)
 
 
 def generate_tldr(text: str) -> str:
@@ -64,11 +80,7 @@ def generate_tldr(text: str) -> str:
         "Do not add any introduction or labels, just the bullets:\n\n"
         f"{text}"
     )
-    result = gemini_client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt
-    )
-    return str(getattr(result, "text", ""))
-
+    return generate_with_fallback(prompt)
 
 def generate_title(text: str) -> str:
     """Use Gemini to generate a title for the article."""
@@ -98,8 +110,7 @@ async def generate_tts(text: str, filename: str = "/tmp/audio.mp3") -> str:
         tts = edge_tts.Communicate(cleaned_text, voice="en-GB-LibbyNeural")
         await tts.save(filename)
         return filename
-    except Exception as e:
-        print(f"TTS generation error: {e}")
+    except Exception:
         return ""
 
 
