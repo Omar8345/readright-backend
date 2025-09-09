@@ -50,8 +50,9 @@ def generate_with_fallback(prompt: str) -> str:
     last_error = None
     for model in models:
         try:
+            data = {"thinking_config": {"thinking_budget": -1}} if model == "gemini-2.5-flash" else {}
             result = gemini_client.models.generate_content(
-                model=model, contents=prompt
+                model=model, contents=prompt, config=data   
             )
             text = getattr(result, "text", "").strip()
             if text:
@@ -90,7 +91,7 @@ def generate_title(text: str) -> str:
         f"{text}"
     )
     result = gemini_client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt
+        model="gemini-2.5-flash", contents=prompt, config={"thinking_config": {"thinking_budget": -1}}
     )
     return str(getattr(result, "text", ""))
 
